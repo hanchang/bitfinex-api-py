@@ -274,6 +274,53 @@ Get the public orderbook of a given symbol
 
   Get all of the funding credits between the start and end period associated with API_KEY - Requires authentication.
 
+# Placing Orders
+This endpoint is used for placing orders. See individual fields below for more details on their use.
+
+#### Order Types
+All orders require a `symbol`. All other fields are optional except when otherwise specified.
+
+These are the valid `ordType`s: 
+
+* Limit: The default order type. Specify an `orderQty` and `price`. 
+* Market: A traditional Market order. A Market order will execute until filled or your bankruptcy price is reached, at which point it will cancel. 
+* MarketWithLeftOverAsLimit: A market order that, after eating through the order book as far as permitted by available margin, will become a limit order. The difference between this type and `Market` only affects the behavior in thin books. Upon reaching the deepest possible price, if there is quantity left over, a `Market` order will cancel the remaining quantity. `MarketWithLeftOverAsLimit` will keep the remaining quantity in the books as a `Limit`. 
+* Stop: A Stop Market order. Specify an `orderQty` and `stopPx`. When the `stopPx` is reached, the order will be entered into the book. On sell orders, the order will trigger if the triggering price is lower than the `stopPx`. On buys, higher. Note: Stop orders do not consume margin until triggered. Be sure that the required margin is available in your account so that it may trigger fully. `Close` Stops don't require an `orderQty`. See Execution Instructions below. 
+* StopLimit: Like a Stop Market, but enters a Limit order instead of a Market order. Specify an `orderQty`, `stopPx`, and `price`.
+* MarketIfTouched: Similar to a Stop, but triggers are done in the opposite direction. Useful for Take Profit orders. 
+* LimitIfTouched: As above; use for Take Profit Limit orders.
+
+#### Execution Instructions
+The following `execInst`s are supported. If using multiple, separate with a comma (e.g. `LastPrice,Close`). 
+
+* ParticipateDoNotInitiate: Also known as a Post-Only order. If this order would have executed on placement, it will cancel instead. 
+* AllOrNone: Valid only for hidden orders (`displayQty: 0`). Use to only execute if the entire order would fill. 
+* MarkPrice, LastPrice, IndexPrice: Used by stop and if-touched orders to determine the triggering price. Use only one. By default, `'MarkPrice'` is used. Also used for Pegged orders to define the value of `'LastPeg'`. 
+* ReduceOnly: A `'ReduceOnly'` order can only reduce your position, not increase it. If you have a `'ReduceOnly'` limit order that rests in the order book while the position is reduced by other orders, then its order quantity will be amended down or canceled. If there are multiple `'ReduceOnly'` orders the least agresssive will be amended first. 
+* Close: `'Close'` implies `'ReduceOnly'`. A `'Close'` order will cancel other active limit orders with the same side and symbol if the open quantity exceeds the current position. This is useful for stops: by canceling these orders, a `'Close'` Stop is ensured to have the margin required to execute, and can only execute up to the full size of your position. If `orderQty` is not specified, a `'Close'` order has an `orderQty` equal to your current position's size. Note that a `Close` order without an `orderQty` requires a `side`, so that BitMEX knows if it should trigger above or below the `stopPx`. 
+
+#### Linked Orders
+Linked Orders are an advanced capability. It is very powerful, but its use requires careful coding and testing. Please follow this document carefully and use the Testnet Exchange while developing. BitMEX offers four advanced Linked Order types: 
+
+* OCO: One Cancels the Other. A very flexible version of the standard Stop / Take Profit technique. Multiple orders may be linked together using a single `clOrdLinkID`. Send a `contingencyType` of `OneCancelsTheOther` on the orders. The first order that fully or partially executes (or activates for `Stop` orders) will cancel all other orders with the same `clOrdLinkID`. 
+* OTO: One Triggers the Other. Send a `contingencyType` of `'OneTriggersTheOther'` on the primary order and then subsequent orders with the same `clOrdLinkID` will be not be triggered until the primary order fully executes. 
+* OUOA: One Updates the Other Absolute. Send a `contingencyType` of `'OneUpdatesTheOtherAbsolute'` on the orders. Then as one order has a execution, other orders with the same `clOrdLinkID` will have their order quantity amended down by the execution quantity. 
+* OUOP: One Updates the Other Proportional. Send a `contingencyType` of `'OneUpdatesTheOtherProportional'` on the orders. Then as one order has a execution, other orders with the same `clOrdLinkID` will have their order quantity reduced proportionally by the fill percentage. 
+
+#### Trailing Stops
+You may use `pegPriceType` of `'TrailingStopPeg'` to create Trailing Stops. The pegged `stopPx` will move as the market moves away from the peg, and freeze as the market moves toward it. To use, combine with `pegOffsetValue` to set the `stopPx` of your order. The peg is set to the triggering price specified in the `execInst` (default `'MarkPrice'`). Use a negative offset for stop-sell and buy-if-touched orders. Requires `ordType`: `'Stop', 'StopLimit', 'MarketIfTouched', 'LimitIfTouched'`. 
+
+#### Simple Quantities
+Send a `simpleOrderQty` instead of an `orderQty` to create an order denominated in the underlying currency. This is useful for opening up a position with 1 XBT of exposure without having to calculate how many contracts it is.
+
+#### Rate Limits
+See the Bulk Order Documentation if you need to place multiple orders at the same time. Bulk orders require fewer risk checks in the trading engine and thus are ratelimited at 1/10 the normal rate. You can also improve your reactivity to market movements while staying under your ratelimit by using the Amend and Amend Bulk endpoints. This allows you to stay in the market and avoids the cancel/replace cycle. 
+
+#### Tracking Your Orders
+If you want to keep track of order IDs yourself, set a unique `clOrdID` per order. This `clOrdID` will come back as a property on the order and any related executions (including on the WebSocket), and can be used to get or cancel the order. Max length is 36 characters. You can also change the `clOrdID` by amending an order, supplying an `origClOrdID`, and your desired new ID as the `clOrdID` param, like so:
+
+``` # Amends an order's leavesQty, and updates its clOrdID to &quot;def-456&quot; PUT /api/v1/order {&quot;origClOrdID&quot;: &quot;abc-123&quot;, &quot;clOrdID&quot;: &quot;def-456&quot;, &quot;leavesQty&quot;: 1000} ```
+
 # Examples
 
 For more info on how to use this library please see the example scripts in the `bfxapi/examples` directory. Here you will find usage of all interface exposed functions for both the rest and websocket.
