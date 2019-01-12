@@ -52,13 +52,16 @@ class GenericWebsocket:
         return self._main(self.host)
 
     async def _main(self, host):
-        async with websockets.connect(host) as websocket:
-            self.ws = websocket
-            self.logger.info("Wesocket connectedt to {}".format(self.host))
-            while True:
-                await asyncio.sleep(0)
-                message = await websocket.recv()
-                await self.on_message(message)
+        self.ws = await websockets.connect(host)
+        self.logger.info("Websocket connected to {}".format(self.host))
+        while True:
+            if not self.ws.open:
+                self.logger.info("Websocket disconnected, reconnecting...")
+                self.ws = await websockets.connect(host)
+
+            await asyncio.sleep(0)
+            message = await self.ws.recv()
+            await self.on_message(message)
 
     def remove_all_listeners(self, event):
         """
