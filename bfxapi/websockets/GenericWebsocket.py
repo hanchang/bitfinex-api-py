@@ -55,13 +55,16 @@ class GenericWebsocket:
         self.ws = await websockets.connect(host)
         self.logger.info("Websocket connected to {}".format(self.host))
         while True:
-            if not self.ws.open:
-                self.logger.info("Websocket disconnected, reconnecting...")
-                self.ws = await websockets.connect(host)
+            try:
+                if not self.ws.open:
+                    self.logger.info("Websocket disconnected, reconnecting...")
+                    self.ws = await websockets.connect(host)
 
-            await asyncio.sleep(0)
-            message = await self.ws.recv()
-            await self.on_message(message)
+                await asyncio.sleep(0)
+                message = await self.ws.recv()
+                await self.on_message(message)
+            except Exception as e:
+                self.logger.error("Websocket connection error: [%s] Trying again..." % e)
 
     def remove_all_listeners(self, event):
         """

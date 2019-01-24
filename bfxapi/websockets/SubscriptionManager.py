@@ -93,14 +93,16 @@ class SubscriptionManager:
         """
         sub = self.subscriptions_chanid[chan_id]
 
-        async def re_sub():
-            await sub.subscribe()
-        if sub.is_subscribed():
-            # unsubscribe first and call callback to subscribe
-            await self.unsubscribe(chan_id, re_sub)
-        else:
-            # already unsibscribed, so just subscribe
-            await sub.subscribe()
+        try:
+            async def re_sub():
+                await sub.subscribe()
+            while not sub.is_subscribed():
+                # unsubscribe first and call callback to subscribe
+                await self.unsubscribe(chan_id, re_sub)
+                time.sleep(1) # Sleep 1 second in between tries
+        except Exception as e:
+            self.logger.error(e)
+
 
     def is_subscribed(self, chan_id):
         """
